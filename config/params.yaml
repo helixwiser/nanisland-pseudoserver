@@ -1,0 +1,43 @@
+# =============================================================
+# Aisland Pipeline Configuration
+# =============================================================
+# Edit paths and parameters here — no need to touch source code.
+
+paths:
+  # Input: raw MAF alignment files
+  raw_maf_dir: "/mnt/resources/FXN/metagenomic/project-raw/last_result/"
+
+  # Intermediate: per-patient parsed TSVs (output of step 01)
+  pre_res_dir: "results/pre_res/"
+
+  # Intermediate: count matrices (output of step 02)
+  count_matrices_dir: "results/count_matrices/"
+
+  # Output: differential analysis results (output of step 03)
+  differential_dir: "results/differential/"
+
+  # Output: figures
+  figures_dir: "results/figures/"
+
+  # Output: FASTA sequences (output of step 04)
+  fasta_dir: "results/fasta/"
+
+analysis:
+  # Which read file to use for differential analysis (1 or 2)
+  read_number: 1
+
+  # Only include samples whose ID starts with this prefix (set to "" to skip)
+  sample_filter: "H"
+
+  # Normalization method: relative_abundance | cpm | log_cpm | clr | none
+  normalization: "log_cpm"
+
+  # Volcano plot thresholds
+  pval_threshold: 0.05
+  log2fc_threshold: 0.1
+  use_adjusted_pval: true
+
+  # Significant protein list thresholds
+  sig_pval_threshold: 0.1
+  sig_log2fc_threshold: 0.1
+  sig_use_adjusted: false
