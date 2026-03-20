@@ -1,0 +1,9 @@
+libname
+total_raw_reads
+host
+mapped_reads
+mapped_reads_dedup
+coverage
+MT_reads
+MT_reads_dedup
+MT_coverage
