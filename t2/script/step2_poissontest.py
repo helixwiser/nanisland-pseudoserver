@@ -1,0 +1,99 @@
+# Step 4: enrich_family_interactions.py (RECOMMENDED VERSION)
+# 使用泊松检验评估家族间互作富集（基于配置模型期望）
+import pandas as pd
+from scipy.stats import poisson
+import numpy as np
+from collections import defaultdict
+from statsmodels.stats.multitest import multipletests
+
+
+count_file = "cluster_data/family_interaction_count.tsv"
+ppi_family_file = "cluster_data/ppi_in_families.csv"  # 需要这个文件！
+mapping_file = "cluster_data/protein_to_family.tsv"
+output_enrich = "cluster_data/family_enrichment_poisson.tsv"
+
+
+# 读取数据
+counts = pd.read_csv(count_file, sep='\t')
+mapping = pd.read_csv(mapping_file)
+
+# ������ 测试模式：只取前100行
+#counts = counts.head(1000).copy()
+#print(f"[✓] Testing mode: using first {len(counts)} rows from family_interaction_count.tsv")
+
+
+# 构建家族成员映射（用于过滤）
+family_members = mapping.groupby('family_rep')['protein'].apply(set).to_dict()
+
+
+# 读取家族级 PPI 边（用于计算 degree）
+ppi_family_df = pd.read_csv(ppi_family_file)
+ppi_family_df = ppi_family_df[
+    ppi_family_df['family1'].isin(family_members) &
+    ppi_family_df['family2'].isin(family_members)
+]
+
+
+# 计算每个家族的 degree（在 PPI 网络中的连接数）
+family_degree = defaultdict(int)
+for _, row in ppi_family_df.iterrows():
+    f1, f2 = row['family1'], row['family2']
+    family_degree[f1] += 1
+    if f1 != f2:
+        family_degree[f2] += 1
+
+print(f"[✓] degree counts finished")
+n_total_edges = ppi_family_df.shape[0]
+
+
+results = []
+
+
+for _, row in counts.iterrows():
+    f1, f2 = row['family1'], row['family2']
+    k = row['observed_interactions']
+
+
+    d1 = family_degree.get(f1, 0)
+    d2 = family_degree.get(f2, 0)
+
+
+    if d1 == 0 or d2 == 0:
+        pval = 1.0
+    else:
+        if f1 == f2:
+            E = (d1 * (d1 - 1)) / (2 * n_total_edges)
+        else:
+            E = (d1 * d2) / n_total_edges
+
+
+        E = max(E, 1e-10)
+        pval = poisson.sf(k - 1, mu=E)  # P(X >= k)
+
+
+    results.append({
+        'family1': f1,
+        'family2': f2,
+        'observed': k,
+        'expected': E,
+        'fold_enrichment': k / E,
+        'pval': pval
+    })
+
+
+# 转为 DataFrame
+result_df = pd.DataFrame(results)
+result_df['pval'] = np.clip(result_df['pval'], 1e-300, 1)
+
+
+# 多重检验校正
+if not result_df.empty:
+    reject, fdr, _, _ = multipletests(result_df['pval'], method='fdr_bh')
+    result_df['fdr'] = fdr
+else:
+    result_df['fdr'] = 1.0
+
+
+result_df.to_csv(output_enrich, sep='\t', index=False)
+print(f"[Step 4] Enrichment analysis with Poisson test saved to {output_enrich}")
+print(f"    Significant edges (FDR < 0.05): {sum(result_df['fdr'] < 0.05)}")
